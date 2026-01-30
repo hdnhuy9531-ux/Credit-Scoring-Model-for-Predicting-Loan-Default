@@ -198,7 +198,125 @@ plt.show()
 
 <img width="966" height="872" alt="image" src="https://github.com/user-attachments/assets/5834042e-2ca6-4668-a2e5-9f4ff035771d" />
 
+## 4.1 Variance Inflation Factor (VIF) Analysis
+- Import data:
+- Input:
+```python
+# Chỉ lấy biến đầu vào
+X = df.drop(columns='target')
 
+# VIF yêu cầu toàn bộ là số
+X = X.astype(float)
 
+vif_df = pd.DataFrame()
+vif_df['Variable'] = X.columns
+vif_df['VIF'] = [
+    variance_inflation_factor(X.values, i)
+    for i in range(X.shape[1])
+]
+
+# Sắp xếp từ cao xuống thấp
+vif_df = vif_df.sort_values(by='VIF', ascending=False)
+
+vif_df
+```
+
+- Output:
+
+| Index | Variable                | VIF        |
+|------:|-------------------------|-----------:|
+| 2     | term                    | 26.279060  |
+| 7     | revol_util              | 20.952282  |
+| 8     | bc_util                 | 20.296269  |
+| 11    | home_ownership_MORTGAGE | 18.106816  |
+| 3     | int_rate                | 14.944990  |
+| 13    | home_ownership_RENT     | 13.298433  |
+| 5     | dti                     | 7.935785   |
+| 9     | open_acc                | 7.730084   |
+| 0     | annual_inc              | 6.729789   |
+| 1     | loan_amnt               | 6.313891   |
+| 12    | home_ownership_OWN      | 4.579515   |
+| 4     | emp_length              | 4.235239   |
+| 10    | inq_last_6mths          | 1.662160   |
+| 6     | delinq_2yrs             | 1.159520   |
+
+Kết quả tương quan và VIF cho thấy tồn tại đa cộng tuyến giữa một số biến đầu vào, cần xử lý trước khi xây dựng mô hình Logistic Regression.
+
+bc_util có tương quan rất cao với revol_util và VIF > 20, phản ánh cùng một thông tin về mức độ sử dụng tín dụng → loại bc_util, giữ revol_util.
+
+Các biến giả home_ownership có VIF cao do dummy variable trap → loại home_ownership_RENT làm nhóm tham chiếu.
+
+Các biến int_rate, term, dti có tương quan rõ với biến mục tiêu và ý nghĩa kinh tế → giữ lại dù VIF ở mức trung bình.
+
+Các biến còn lại có VIF thấp, không gây đa cộng tuyến nghiêm trọng → giữ lại cho mô hình.
+
+## 4.1 Loại biến và VIF recheck 
+### 4.1.1 Loại biến
+- Import data:
+- Input:
+```python
+# Danh sách biến cần loại
+drop_cols = ['bc_util', 'home_ownership_RENT']
+
+df_reduced = df.drop(columns=drop_cols)
+```
+
+### 4.1.2 VIF recheck 
+- Import data:
+- Input:
+```python
+# Tách X để tính lại VIF
+X_vif = df_reduced.drop(columns='target').copy()
+
+# Xử lý term (nếu còn object)
+if X_vif['term'].dtype == 'object':
+    X_vif['term'] = (
+        X_vif['term']
+        .str.replace(' months', '', regex=False)
+        .astype(int)
+    )
+
+# ÉP biến dummy bool → int
+bool_cols = X_vif.select_dtypes(include='bool').columns
+X_vif[bool_cols] = X_vif[bool_cols].astype(int)
+
+# Check & xử lý NaN / inf
+X_vif = X_vif.replace([np.inf, -np.inf], np.nan)
+X_vif = X_vif.dropna()
+
+# Tính lại VIF
+vif_df_new = pd.DataFrame()
+vif_df_new['Variable'] = X_vif.columns
+vif_df_new['VIF'] = [
+    variance_inflation_factor(X_vif.values, i)
+    for i in range(X_vif.shape[1])
+]
+
+vif_df_new.sort_values(by='VIF', ascending=False)
+```
+
+- Output
+
+| Index | Variable                | VIF        |
+|------:|-------------------------|-----------:|
+| 2     | term                    | 19.903686  |
+| 3     | int_rate                | 14.292914  |
+| 5     | dti                     | 7.625914   |
+| 8     | open_acc                | 7.287881   |
+| 7     | revol_util              | 6.336007   |
+| 0     | annual_inc              | 6.163749   |
+| 1     | loan_amnt               | 6.044441   |
+| 4     | emp_length              | 4.021784   |
+| 10    | home_ownership_MORTGAGE | 2.464276   |
+| 9     | inq_last_6mths          | 1.659584   |
+| 11    | home_ownership_OWN      | 1.285604   |
+| 6     | delinq_2yrs             | 1.158477   |
+
+Nhận xét:
+Kết quả VIF cho thấy tồn tại hiện tượng đa cộng tuyến, tập trung chủ yếu ở các biến term (VIF ≈ 19.9) và int_rate (VIF ≈ 14.3). Điều này phản ánh mối quan hệ kinh tế hợp lý khi các khoản vay có kỳ hạn dài thường đi kèm lãi suất cao.
+
+Các biến còn lại có VIF ở mức trung bình (5–10) hoặc thấp (<5), cho thấy mức độ phụ thuộc tuyến tính không nghiêm trọng và vẫn chấp nhận được trong mô hình Logistic Regression.
+
+Việc giữ biến term được lựa chọn nhằm đảm bảo ý nghĩa nghiệp vụ và khả năng diễn giải mô hình, trong khi rủi ro đa cộng tuyến sẽ được kiểm soát thông qua regularization (L2) trong Logistic Regression.
 
 
