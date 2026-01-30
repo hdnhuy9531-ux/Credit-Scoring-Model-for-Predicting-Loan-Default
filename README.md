@@ -49,11 +49,106 @@ df.head()
 | 3   | 66310712 | NaN       | 35000.0   | 35000.0     | 35000.0          | 60 months  | 14.85    | 829.90      | C     | C5        | Cash                 | N                    |
 | 4   | 68476807 | NaN       | 10400.0   | 10400.0     | 10400.0          | 60 months  | 22.45    | 289.91      | F     | F1        | Cash                 | N                    |
 
+# Stage 2: CHOOSE TARGET VARIABLE
+- Import data:
+- Input:
+```python
+good_status = ['Fully Paid']
+bad_status = ['Charged Off', 'Default']
 
+df = df[df['loan_status'].isin(good_status + bad_status)].copy()
 
+df['target'] = np.where(df['loan_status'].isin(bad_status), 1, 0)
+```
 
-# Stage 1: DATA CLEANING
+# Stage 3: CLEAN DATA
+## 3.1 Standard data type
+- Import data:
+- Input:
+```python
+# Emp length: object → numeric
+df['emp_length'] = (
+    df['emp_length']
+    .astype(str)
+    .str.replace('years', '', regex=False)
+    .str.replace('year', '', regex=False)
+    .str.replace('+', '', regex=False)
+    .str.replace('<', '', regex=False)
+    .str.strip()
+)
 
+df['emp_length'] = df['emp_length'].replace('nan', np.nan).astype(float)
+```
+## 3.2 Missing values
+- Import data:
+- Input:
+```python
+num_cols = [
+    'dti', 'delinq_2yrs', 'revol_util',
+    'bc_util', 'open_acc', 'inq_last_6mths',
+    'emp_length'
+]
 
+for col in num_cols:
+    df[col].fillna(df[col].median(), inplace=True)
+```
+## 3.3 Encode categorical variables
+- Import data:
+- Input:
+```python
+df = pd.get_dummies(
+    df,
+    columns=['home_ownership'],
+    drop_first=True
+)
+```
+## Outlier detection
+- Import data:
+- Input:
+```python
+def cap_outlier(series, lower=0.01, upper=0.99):
+    return series.clip(
+        lower=series.quantile(lower),
+        upper=series.quantile(upper)
+    )
 
+outlier_cols = [
+    'annual_inc', 'loan_amnt', 'dti',
+    'revol_util', 'bc_util',
+    'open_acc', 'int_rate', 'emp_length'
+]
 
+for col in outlier_cols:
+    df[col] = cap_outlier(df[col])
+```
+## Result after cleaning data
+- Import data:
+- Input:
+```python
+df.info()
+```
+
+- Output:
+  
+Index: 267680 entries, 0 to 302139
+Data columns (total 15 columns):
+
+| #  | Column                   | Non-Null Count | Dtype   |
+|----|--------------------------|----------------|---------|
+| 0  | annual_inc               | 267,680        | float64 |
+| 1  | loan_amnt                | 267,680        | float64 |
+| 2  | term                     | 267,680        | int64   |
+| 3  | int_rate                 | 267,680        | float64 |
+| 4  | emp_length               | 267,680        | float64 |
+| 5  | dti                      | 267,680        | float64 |
+| 6  | delinq_2yrs              | 267,680        | float64 |
+| 7  | revol_util               | 267,680        | float64 |
+| 8  | bc_util                  | 267,680        | float64 |
+| 9  | open_acc                 | 267,680        | float64 |
+| 10 | inq_last_6mths           | 267,680        | float64 |
+| 11 | target                   | 267,680        | int64   |
+| 12 | home_ownership_MORTGAGE  | 267,680        | bool    |
+| 13 | home_ownership_OWN       | 267,680        | bool    |
+| 14 | home_ownership_RENT      | 267,680        | bool    |
+
+Finally, I have resolved the issue with missing values. Now, the dataset is fully prepared for further analysis. 
