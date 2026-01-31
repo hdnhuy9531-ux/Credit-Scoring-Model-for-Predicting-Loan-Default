@@ -295,7 +295,7 @@ vif_df_new['VIF'] = [
 vif_df_new.sort_values(by='VIF', ascending=False)
 ```
 
-- Output
+- Output:
 
 | Index | Variable                | VIF        |
 |------:|-------------------------|-----------:|
@@ -318,5 +318,128 @@ Kết quả VIF cho thấy tồn tại hiện tượng đa cộng tuyến, tập
 Các biến còn lại có VIF ở mức trung bình (5–10) hoặc thấp (<5), cho thấy mức độ phụ thuộc tuyến tính không nghiêm trọng và vẫn chấp nhận được trong mô hình Logistic Regression.
 
 Việc giữ biến term được lựa chọn nhằm đảm bảo ý nghĩa nghiệp vụ và khả năng diễn giải mô hình, trong khi rủi ro đa cộng tuyến sẽ được kiểm soát thông qua regularization (L2) trong Logistic Regression.
+
+# Stage 5: LOGISTIC REGRESSION
+## 5.1 Prepare Data
+- Import data:
+- Input:
+```python
+X = df[
+    [
+        'annual_inc', 'loan_amnt', 'term', 'int_rate',
+        'emp_length', 'dti', 'delinq_2yrs',
+        'revol_util', 'open_acc', 'inq_last_6mths',
+        'home_ownership_MORTGAGE', 'home_ownership_OWN'
+    ]
+]
+
+y = df['target']
+```
+## 5.2 Train / Test Split
+- Import data:
+- Input:
+```python
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.3,
+    stratify=y,
+    random_state=42
+)
+```
+# 5.3 Build Logistic Regression (có L2)
+- Import data:
+- Input:
+```python
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('logit', LogisticRegression(
+        penalty='l2',
+        C=0.5,
+        solver='saga',
+        max_iter=3000
+    ))
+])
+
+pipeline.fit(X_train, y_train)
+```
+<img width="1200" height="406" alt="image" src="https://github.com/user-attachments/assets/4ce769f6-f567-4a7a-909d-9e1bab47bf69" />
+
+
+# 5.4 Đánh giá mô hình (AUC – Gini)
+- Import data:
+- Input:
+```python
+from sklearn.metrics import roc_auc_score
+
+y_pred_prob = pipeline.predict_proba(X_test)[:, 1]
+
+auc = roc_auc_score(y_test, y_pred_prob)
+gini = 2 * auc - 1
+
+print(f"AUC: {auc:.4f}")
+print(f"Gini: {gini:.4f}")
+```
+
+- Output:
+
+AUC: 0.7310
+Gini: 0.4619
+
+# 5.5 ROC curve
+- Import data:
+- Input:
+```python
+fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+
+plt.figure(figsize=(6,4))
+plt.plot(fpr, tpr, label=f"AUC = {auc:.2f}")
+plt.plot([0,1], [0,1], linestyle='--')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve – Logistic Regression")
+plt.legend()
+plt.show()
+```
+
+- Output:
+
+<img width="536" height="393" alt="image" src="https://github.com/user-attachments/assets/c5576e35-4596-4201-9683-0f7b32fef770" />
+
+# 5.6 Diễn giải hệ số (Odds Ratio)
+- Import data:
+- Input:
+```python
+coef = pipeline.named_steps['logit'].coef_[0]
+
+coef_df = pd.DataFrame({
+    'Variable': X.columns,
+    'Coefficient': coef,
+    'Odds_Ratio': np.exp(coef)
+}).sort_values(by='Odds_Ratio', ascending=False)
+
+coef_df
+```
+
+- Output:
+
+| Index | Variable                | Coefficient | Odds_Ratio |
+|------:|-------------------------|------------:|-----------:|
+| 3     | int_rate                | 0.550817    | 1.734669   |
+| 2     | term                    | 0.277918    | 1.320378   |
+| 5     | dti                     | 0.130433    | 1.139321   |
+| 9     | inq_last_6mths          | 0.094227    | 1.098809   |
+| 8     | open_acc                | 0.069475    | 1.071945   |
+| 6     | delinq_2yrs             | 0.055968    | 1.057563   |
+| 1     | loan_amnt               | 0.046583    | 1.047686   |
+| 7     | revol_util              | 0.041968    | 1.042861   |
+| 4     | emp_length              | -0.029259   | 0.971165   |
+| 11    | home_ownership_OWN      | -0.049989   | 0.951240   |
+| 0     | annual_inc              | -0.106388   | 0.899076   |
+| 10    | home_ownership_MORTGAGE | -0.179925   | 0.835333   |
+
+
+
 
 
